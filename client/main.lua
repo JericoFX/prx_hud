@@ -35,6 +35,16 @@ local carInfo = {
     rpm = 0,
   }
 }
+local actualCar = 0
+CreateThread(function()
+  Wait(200)
+  if IsPedInAnyVehicle(PlayerPedId(), false) then
+    hudInfo.isCar = true
+    actualCar = GetVehiclePedIsIn(PlayerPedId(), false)
+  end
+end)
+
+
 CreateThread(function()
   Wait(500)
   PlayerData = QBCore.Functions.GetPlayerData()
@@ -62,7 +72,6 @@ RegisterNetEvent('QBCore:Client:SetPlayerData', function(val)
   SendNUIMessage({ hudInfo = hudInfo })
 end)
 
-local actualCar
 
 CreateThread(function()
   TriggerEvent('pma-voice:setTalkingMode', 2)
@@ -96,7 +105,7 @@ end)
 
 lib.onCache("vehicle", function(value)
   actualCar = value
-  hudInfo.isCar = actualCar > 0 and true or false
+  hudInfo.isCar = type(actualCar) == 'number' and true or value
 end)
 
 RegisterNetEvent("hud:client:UpdateNeeds", function(newHunger, newThirst)
@@ -108,7 +117,6 @@ CreateThread(function()
   while true do
     Wait(2000)
     hudInfo.bars.health = (GetEntityHealth(PlayerPedId()) - 100)
-    print(hudInfo.bars.health)
     hudInfo.bars.stamina = 100 - GetPlayerSprintStaminaRemaining(PlayerId())
     hudInfo.bars.oxygen = math.ceil(GetPlayerUnderwaterTimeRemaining(PlayerId())) * 10
     if hudInfo.isCar then
@@ -126,7 +134,7 @@ CreateThread(function()
     if hudInfo.isCar then
       carInfo.belt = false
     end
-    while hudInfo.isCar do
+    if hudInfo.isCar then
       Wait(100)
       DisplayRadar(true)
       carInfo.emer = IsVehicleSirenOn(actualCar)
@@ -160,7 +168,7 @@ end)
 CreateThread(function()
   while true do
     Wait(3000)
-    while hudInfo.isCar do
+    if hudInfo.isCar then
       Wait(5000)
       if not carInfo.belt and not carInfo.moto then
         PlaySound("alerta", 0.5)
