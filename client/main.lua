@@ -1,4 +1,8 @@
-ESX = exports['es_extended']:getSharedObject()
+local QBCore = exports["qb-core"]:GetCoreObject()
+local PlayerData = {}
+
+
+
 
 local hudInfo = {
   isCar = false,
@@ -31,21 +35,48 @@ local carInfo = {
     rpm = 0,
   }
 }
+CreateThread(function()
+  Wait(500)
+  PlayerData = QBCore.Functions.GetPlayerData()
+  hudInfo.bars.thrist = PlayerData.metadata["thirst"]
+  hudInfo.bars.hunger = PlayerData.metadata["hunger"]
+  hudInfo.bars.armor = PlayerData.metadata["armor"]
+  hudInfo.bars.stress = PlayerData.metadata["stress"]
+  SendNUIMessage({ hudInfo = hudInfo })
+end)
+RegisterNetEvent('QBCore:Client:OnPlayerLoaded', function()
+  PlayerData = QBCore.Functions.GetPlayerData()
+  hudInfo.bars.thrist = PlayerData.metadata["thirst"]
+  hudInfo.bars.hunger = PlayerData.metadata["hunger"]
+  hudInfo.bars.armor = PlayerData.metadata["armor"]
+  hudInfo.bars.stress = PlayerData.metadata["stress"]
+  SendNUIMessage({ hudInfo = hudInfo })
+end)
+
+RegisterNetEvent('QBCore:Client:SetPlayerData', function(val)
+  PlayerData = val
+  hudInfo.bars.thrist = PlayerData.metadata["thirst"]
+  hudInfo.bars.hunger = PlayerData.metadata["hunger"]
+  hudInfo.bars.armor = PlayerData.metadata["armor"]
+  hudInfo.bars.stress = PlayerData.metadata["stress"]
+  SendNUIMessage({ hudInfo = hudInfo })
+end)
 
 local actualCar
-
 
 CreateThread(function()
   TriggerEvent('pma-voice:setTalkingMode', 2)
   while true do
     Wait(400)
-    hudInfo.isTalking = NetworkIsPlayerTalking(PlayerId())
-    if exports["rp-radio"].IsRadioOn() then
+    hudInfo.isTalking = NetworkIsPlayerTalking(cache.ped)
+    if not Config.radio then
+      hudInfo.bars.radio = 0
+    elseif Config.radio and hudInfo.radioTalking then -- Si tiene el export y esta hablando lo seteamos al 100%
       hudInfo.bars.radio = 100
     else
       hudInfo.bars.radio = 0
     end
-    SendNUIMessage({hudInfo = hudInfo})
+    SendNUIMessage({ hudInfo = hudInfo })
   end
 end)
 
@@ -63,74 +94,61 @@ AddEventHandler('pma-voice:radioActive', function(broadCasting)
   hudInfo.radioTalking = broadCasting
 end)
 
+lib.onCache("vehicle", function(value)
+  actualCar = value
+  hudInfo.isCar = actualCar > 0 and true or false
+end)
+
+RegisterNetEvent("hud:client:UpdateNeeds", function(newHunger, newThirst)
+  hudInfo.bars.thrist = newThirst
+  hudInfo.bars.hunger = newHunger
+end)
 
 CreateThread(function()
-  while true do 
+  while true do
     Wait(2000)
-    local plyPed = PlayerPedId()
-
-    TriggerEvent('esx_status:getStatus', 'thirst', function(status)
-      hudInfo.bars.thrist = status.getPercent()
-    end)
-    TriggerEvent('esx_status:getStatus', 'hunger', function(status)
-      hudInfo.bars.hunger = status.getPercent()
-    end)
-    TriggerEvent('esx_status:getStatus', 'stress', function(status)
-      hudInfo.bars.stress = status.getPercent()
-    end)
-
-    hudInfo.bars.armor = GetPedArmour(plyPed)
-
-    hudInfo.bars.health = (GetEntityHealth(plyPed) - 100)
-
+    hudInfo.bars.health = (GetEntityHealth(PlayerPedId()) - 100)
+    print(hudInfo.bars.health)
     hudInfo.bars.stamina = 100 - GetPlayerSprintStaminaRemaining(PlayerId())
-
     hudInfo.bars.oxygen = math.ceil(GetPlayerUnderwaterTimeRemaining(PlayerId())) * 10
-
-    hudInfo.isCar = IsPedInAnyVehicle(plyPed, false)
-
     if hudInfo.isCar then
       hudInfo.left = GetMinimapAnchor().width + GetMinimapAnchor().left_x + 10
     end
-
-    actualCar = GetVehiclePedIsIn(plyPed, false)
-
-    SendNUIMessage({hudInfo = hudInfo})
+    SendNUIMessage({ hudInfo = hudInfo })
   end
 end)
 
 -- CAR HUD --
 
 CreateThread(function()
-  while true do 
+  while true do
     Wait(2000)
-    if hudInfo.isCar and actualCar ~= 0 then
+    if hudInfo.isCar then
       carInfo.belt = false
     end
-    while hudInfo.isCar and actualCar ~= 0 do
+    while hudInfo.isCar do
       Wait(100)
       DisplayRadar(true)
       carInfo.emer = IsVehicleSirenOn(actualCar)
 
-      carInfo.speed = math.floor(GetEntitySpeed(actualCar)*3.6)
+      carInfo.speed = math.floor(GetEntitySpeed(actualCar) * 3.6)
 
       carInfo.gear = GetVehicleCurrentGear(actualCar)
 
-      carInfo.bars.fuel = GetVehicleFuelLevel(actualCar)* 60 / 100
-      
+      carInfo.bars.fuel = GetVehicleFuelLevel(actualCar) * 60 / 100
+
       carInfo.bars.engine = GetVehicleEngineHealth(actualCar)
 
       carInfo.bars.rpm = GetVehicleCurrentRpm(actualCar)
 
-      if GetVehicleClass(actualCar) == 8 or GetVehicleClass(actualCar)==13 then 
+      if GetVehicleClass(actualCar) == 8 or GetVehicleClass(actualCar) == 13 then
         carInfo.belt = false
         carInfo.moto = true
       else
         carInfo.moto = false
       end
 
-      SendNUIMessage({carInfo = carInfo})
-      actualCar = GetVehiclePedIsIn(plyPed, false)
+      SendNUIMessage({ carInfo = carInfo })
     end
 
     if not hudInfo.isCar then
@@ -140,9 +158,9 @@ CreateThread(function()
 end)
 
 CreateThread(function()
-  while true do 
+  while true do
     Wait(3000)
-    while hudInfo.isCar and actualCar ~= 0 do
+    while hudInfo.isCar do
       Wait(5000)
       if not carInfo.belt and not carInfo.moto then
         PlaySound("alerta", 0.5)
@@ -152,7 +170,7 @@ CreateThread(function()
       local zone = GetNameOfZone(coords.x, coords.y, coords.z);
       local zoneLabel = GetLabelText(zone);
       _street = GetStreetNameFromHashKey(streetname);
-      carInfo.street = zoneLabel .. " / ".. _street.."  "
+      carInfo.street = zoneLabel .. " / " .. _street .. "  "
     end
   end
 end)
@@ -164,54 +182,65 @@ RegisterKeyMapping("cinturon", "Poner / Quitar el cinturón", "KEYBOARD", "X")
 RegisterCommand("cinturon", function()
   if hudInfo.isCar and not carInfo.moto then
     carInfo.belt = not carInfo.belt
-
     if carInfo.belt then
       PlaySound('buckle', 0.2)
-      ESX.ShowNotification("Te has puesto el cinturon")
+      QBCore.Functions.Notify("Te has puesto el cinturon", "primary", 3000)
+      --LOGICA DEL CINTURON
+      local s, e = pcall(function()
+        return SetFlyThroughWindscreenParams(1000.0, 1000.0, 17.0, 500.0)
+      end)
+
+      if not s then
+        print(e) -- error al setear el valor
+      end
+      SetPedConfigFlag(cache.playerId, 32, true)
     else
       PlaySound('unbuckle', 0.2)
-      ESX.ShowNotification("Te has quitado el cinturon")
+      QBCore.Functions.Notify("Te has quitado el cinturon", "primary", 3000)
+      ResetFlyThroughWindscreenParams()
+      SetPedConfigFlag(cache.playerId, 32, false)
     end
   elseif not carInfo.moto then
     carInfo.belt = false
   elseif carInfo.moto then
-    ESX.ShowNotification("Este vehiculo no tiene cinturon")
+    QBCore.Functions.Notify("Este vehiculo no tiene cinturon", "error", 3000)
+    ResetFlyThroughWindscreenParams()
+    SetPedConfigFlag(cache.playerId, 32, false)
   end
-end)
+end, false)
 
 -- LOGICA DEL CINTURON --
-CreateThread(function()
-  while true do
-    Wait(2500)
-    while carInfo.belt do
-      Wait(1)
-      DisableControlAction(0, 75, true)
-			DisableControlAction(27, 75, true)
-    end
-  end
-end)
+-- CreateThread(function()
+--   while true do
+--     Wait(2500)
+--     while carInfo.belt do
+--       Wait(1)
+--       DisableControlAction(0, 75, true)
+--       DisableControlAction(27, 75, true)
+--     end
+--   end
+-- end)
 
-CreateThread(function()
-  while true do 
-    Wait(3000)
-    while not carInfo.belt and hudInfo.isCar and not carInfo.moto do
-      local velBuffer = GetEntityVelocity(actualCar)
-      local prevSpeed = GetEntitySpeed(actualCar)*3.6
-      Wait(1000)
-      local currentSpeed = GetEntitySpeed(actualCar)*3.6
+-- CreateThread(function()
+--   while true do
+--     Wait(3000)
+--     while not carInfo.belt and hudInfo.isCar and not carInfo.moto do
+--       local velBuffer = GetEntityVelocity(actualCar)
+--       local prevSpeed = GetEntitySpeed(actualCar) * 3.6
+--       Wait(1000)
+--       local currentSpeed = GetEntitySpeed(actualCar) * 3.6
 
-      if (prevSpeed - currentSpeed) >= 120 then
-        local co = GetEntityCoords(PlayerPedId())
-        local fw = Fwv(PlayerPedId())
-        SetEntityCoords(PlayerPedId(), co.x + fw.x, co.y + fw.y, co.z - 0.47, true, true, true)
-        SetEntityVelocity(PlayerPedId(), velBuffer.x, velBuffer.y, velBuffer.z)
-        Wait(1)
-        SetPedToRagdoll(PlayerPedId(), 1000, 1000, 0, 0, 0, 0)
-      end
-
-    end
-  end
-end)
+--       if (prevSpeed - currentSpeed) >= 120 then
+--         local co = GetEntityCoords(PlayerPedId())
+--         local fw = Fwv(PlayerPedId())
+--         SetEntityCoords(PlayerPedId(), co.x + fw.x, co.y + fw.y, co.z - 0.47, true, true, true)
+--         SetEntityVelocity(PlayerPedId(), velBuffer.x, velBuffer.y, velBuffer.z)
+--         Wait(1)
+--         SetPedToRagdoll(PlayerPedId(), 1000, 1000, 0, 0, 0, 0)
+--       end
+--     end
+--   end
+-- end)
 
 function Fwv(entity)
   local hr = GetEntityHeading(entity) + 90.0
@@ -234,11 +263,11 @@ RegisterCommand('limitador', function()
       carInfo.cruiser = false
       local player = PlayerPedId()
       local vehicle = GetVehiclePedIsIn(player, false)
-      local maxSpeed = GetVehicleHandlingFloat(vehicle,"CHandlingData","fInitialDriveMaxFlatVel")
+      local maxSpeed = GetVehicleHandlingFloat(vehicle, "CHandlingData", "fInitialDriveMaxFlatVel")
       SetEntityMaxSpeed(vehicle, maxSpeed)
     end
   end
-end)
+end, false)
 
 function PlaySound(soundFile, soundVolume)
   SendNUIMessage({
@@ -258,9 +287,12 @@ CreateThread(function()
     while EstadoAncla and IsPedInAnyBoat(playerPed) do
       Wait(0)
       SetVehicleEngineOn(GetVehiclePedIsIn(playerPed, false), false, false, true)
-      FreezeEntityPosition(GetVehiclePedIsIn(playerPed, false), true)		
+      FreezeEntityPosition(GetVehiclePedIsIn(playerPed, false), true)
     end
-    if IsPedInAnyBoat(playerPed) and not EstadoAncla then SetVehicleEngineOn(GetVehiclePedIsIn(playerPed, false), true, false, true) FreezeEntityPosition(GetVehiclePedIsIn(playerPed, false), false) end
+    if IsPedInAnyBoat(playerPed) and not EstadoAncla then
+      SetVehicleEngineOn(GetVehiclePedIsIn(playerPed, false), true, false, true)
+      FreezeEntityPosition(GetVehiclePedIsIn(playerPed, false), false)
+    end
     if not IsPedInAnyBoat(playerPed) then EstadoAncla = false end
   end
 end)
@@ -268,15 +300,15 @@ end)
 RegisterCommand('ancla', function()
   local myVehicleSpeed = GetEntitySpeed(GetVehiclePedIsIn(PlayerPedId(), false))
   if (myVehicleSpeed * 3.6) > 20 then
-    ESX.ShowNotification("Vas muy rápido, no puedes anclar el barco")
+    QBCore.Functions.Notify("Vas muy rápido, no puedes anclar el barco")
   elseif not EstadoAncla then
-    ESX.ShowNotification("Has echado el ancla")
+    QBCore.Functions.Notify("Has echado el ancla")
     EstadoAncla = true
   elseif EstadoAncla then
-    ESX.ShowNotification("Has retirado el ancla")
+    QBCore.Functions.Notify("Has retirado el ancla")
     EstadoAncla = false
   end
-end)
+end, false)
 
 local showHud = true
 
@@ -285,4 +317,4 @@ RegisterCommand("hud", function()
   SendNUIMessage({
     showHud = showHud
   })
-end)
+end, false)
