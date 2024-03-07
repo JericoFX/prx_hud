@@ -192,7 +192,6 @@ RegisterCommand("cinturon", function()
     carInfo.belt = not carInfo.belt
     if carInfo.belt then
       PlaySound('buckle', 0.2)
-      QBCore.Functions.Notify("Te has puesto el cinturon", "primary", 3000)
       --LOGICA DEL CINTURON
       local s, e = pcall(function()
         return SetFlyThroughWindscreenParams(1000.0, 1000.0, 17.0, 500.0)
@@ -202,6 +201,7 @@ RegisterCommand("cinturon", function()
         print(e) -- error al setear el valor
       end
       SetPedConfigFlag(cache.playerId, 32, true)
+      QBCore.Functions.Notify("Te has puesto el cinturon", "primary", 3000)
     else
       PlaySound('unbuckle', 0.2)
       QBCore.Functions.Notify("Te has quitado el cinturon", "primary", 3000)
